@@ -1,6 +1,3 @@
-import matplotlib.pyplot as plt
-from itertools import product
-
 from torch import optim
 
 from Iris_utils import *
