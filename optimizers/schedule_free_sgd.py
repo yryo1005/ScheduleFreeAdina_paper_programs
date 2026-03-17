@@ -40,7 +40,7 @@ class ScheduleFreeSGD(torch.optim.Optimizer):
     def train(self):
         """
             平均パラメータから内分パラメータへ切り替える関数
-            推論の直前で使用する
+            学習の直前で使用する
         """
         for group in self.param_groups:
             train_mode = group['train_mode']
