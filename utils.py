@@ -1,4 +1,5 @@
 import json
+import numpy as np
 import matplotlib.pyplot as plt
 from itertools import product
 
@@ -74,7 +75,7 @@ def get_best_histories(target_dir, search_space, num_seed, metric = "test_acc", 
 
     return best_histories
 
-def plot_training_results(target_dir, best_histories, search_space, metrics, ):
+def plot_best_training_results(target_dir, best_histories, search_space, metrics, ):
 
     fig = plt.figure(figsize = (10, 10))
     for i, M in enumerate(metrics):
@@ -102,3 +103,61 @@ def plot_training_results(target_dir, best_histories, search_space, metrics, ):
 
     fig.savefig(f"{target_dir}/training_results.png", bbox_inches = "tight")
     plt.show()
+
+def get_confidence_intervals(target_dir, search_space, num_seed, metrics):
+    confidence_intervals = dict()
+
+    for PARAMS in product(*search_space.values()):
+
+        # 探索空間のパラメータ
+        params = {
+            K: P for K, P in zip(search_space.keys(), PARAMS)
+        }
+
+        histories = {M: list() for M in metrics}
+        for seed in range(num_seed):
+            tmp = ""
+            for V in params.values():
+                tmp += f"{V}_"
+            tmp = tmp[:-1]
+            target_path = f"{target_dir}/{tmp}_{seed}.json"
+            logger = ResultLogger(target_path = target_path)
+            for M in metrics:
+                histories[M].append(logger[M])
+            confidence_intervals[tmp] = histories
+        
+        confidence_intervals[tmp] = {
+            M: {
+                "mean": np.array(histories[M]).mean(axis = 0),
+                "std": np.array(histories[M]).std(axis = 0)
+            } 
+            for M in metrics
+        }
+
+    return confidence_intervals
+
+def plot_confidence_intervals(target_dir, confidence_intervals, metrics, ):
+
+    for K, V in confidence_intervals.items():
+        fig = plt.figure(figsize = (10, 10))
+        for i, M in enumerate(metrics):
+            # TODO
+            ax = fig.add_subplot(2, 2, i + 1)
+            
+            ax.plot(V[M]["mean"], label = f"{V[M]['mean'][-1]:.4f} ± {V[M]['std'][-1]:.4f}")
+            ax.fill_between(
+                x=range(len(V[M]["mean"])),
+                y1=V[M]["mean"] - V[M]["std"],
+                y2=V[M]["mean"] + V[M]["std"],
+                alpha=0.2,
+            )
+            
+            ax.set_xlabel("epoch")
+            ax.set_ylabel(M)
+            ax.set_title(M)
+            ax.legend()
+            ax.grid()
+        fig.suptitle(K)
+        fig.savefig(f"{target_dir}/{K}_confidence_intervals.png", bbox_inches = "tight")
+
+        plt.show()

@@ -14,16 +14,8 @@ import sys
 sys.path.append("../")
 from utils import *
 
-# 全手法で共通のハイパーパラメータ
-EPOCHS = 100
-BATCH_SIZE = 16
-NUM_SEED = 10
-TEST_SIZE = 0.1
-NUM_WORKERS = 1
-METRICS = ["train_loss", "train_acc", "test_loss", "test_acc"]
-
 # データ読み込み
-def load_data(batch_size = BATCH_SIZE, seed = 0, test_size = TEST_SIZE, num_workers = NUM_WORKERS):
+def load_data(batch_size = 16, test_size = 0.1, num_workers = 1, seed = 0):
 
     class MyDataset(Dataset):
         def __init__(self, inputs, teacher_signals):
@@ -109,10 +101,9 @@ def load_model(seed = 0):
 
     return model
 
-def train(target_path, optimizer, optimizer_params, scheduler = None,
-          epochs = EPOCHS, batch_size = BATCH_SIZE,
-          seed = 0, test_size = TEST_SIZE, num_workers = NUM_WORKERS,
-          verbose = False):
+def train(target_path, optimizer, optimizer_params,
+          epochs = 100, batch_size = 16, test_size = 0.1, num_workers = 1,
+          seed = 0, verbose = False):
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -130,6 +121,9 @@ def train(target_path, optimizer, optimizer_params, scheduler = None,
         T_batch = T_batch.to(device)
 
         if optimizer is not None:
+            model.train()
+            if hasattr(optimizer, "train"): optimizer.train()
+
             optimizer.zero_grad()
             Y_batch = model(X_batch)
             E_batch = loss_func(Y_batch, T_batch)
@@ -137,6 +131,9 @@ def train(target_path, optimizer, optimizer_params, scheduler = None,
             optimizer.step()
 
         else:
+            model.eval()
+            if hasattr(optimizer, "eval"): optimizer.eval()
+
             with torch.no_grad():
                 Y_batch = model(X_batch)
                 E_batch = loss_func(Y_batch, T_batch)
@@ -171,14 +168,15 @@ def train(target_path, optimizer, optimizer_params, scheduler = None,
         return E, A
 
     train_dataloader, test_dataloader = load_data(batch_size = batch_size,
-                                                  seed = seed,
                                                   test_size = test_size,
-                                                  num_workers = num_workers)
+                                                  num_workers = num_workers,
+                                                  seed = seed,)
     model = load_model(seed = seed).to(device)
     optimizer = optimizer(model.parameters(), **optimizer_params)
 
+
     logger = ResultLogger()
-    logger.set_names(*METRICS)
+    logger.set_names(*["train_loss", "train_acc", "test_loss", "test_acc"])
 
     for i in range(epochs):
         if verbose: print(f"epoch; {i}")
@@ -192,15 +190,11 @@ def train(target_path, optimizer, optimizer_params, scheduler = None,
 
         logger(train_loss, train_acc, test_loss, test_acc)
 
-        if scheduler:
-            scheduler.step()
-
     logger.save(target_path)
 
 def train_all(target_dir, optimizer, search_space, fixed_params,
-              epochs = EPOCHS, batch_size = BATCH_SIZE,
-              num_seed = NUM_SEED, test_size = TEST_SIZE,
-              num_workers = NUM_WORKERS, verbose = False):
+              epochs = 100, batch_size = 16, test_size = 0.1, num_workers = 1, 
+              num_seed = 10, verbose = False):
 
     for PARAMS in product(*search_space.values()):
 
@@ -230,9 +224,7 @@ def train_all(target_dir, optimizer, search_space, fixed_params,
             train(target_path = target_path,
                   optimizer = optimizer,
                   optimizer_params = optimizer_params,
-                  scheduler = None,
                   seed = seed,
-
                   epochs = epochs,
                   batch_size = batch_size,
                   test_size = test_size,
